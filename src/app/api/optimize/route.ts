@@ -6,6 +6,8 @@ const MODELS = [
   'microsoft/phi-3-mini-128k-instruct:free',
 ]
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 function extractJson(text: string) {
   const cleaned = text
     .replace(/```json\n?/g, '')
@@ -167,27 +169,38 @@ Optimize the resume for this specific job. Return only raw JSON.`
     let lastError = 'AI failed'
 
     for (const model of MODELS) {
-      try {
-        console.log(`Trying model: ${model}`)
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`Trying model: ${model} attempt ${attempt}`)
 
-        const data = await callOpenRouter(prompt, model)
-        const aiText = data.choices?.[0]?.message?.content || ''
+          const data = await callOpenRouter(prompt, model)
+          const aiText = data.choices?.[0]?.message?.content || ''
 
-        if (!aiText) {
-          throw new Error('AI returned empty response')
+          if (!aiText) {
+            throw new Error('AI returned empty response')
+          }
+
+          const optimized = extractJson(aiText)
+
+          console.log(`Success with model: ${model}`)
+          return NextResponse.json({ optimized })
+        } catch (err: any) {
+          lastError = err.message || 'AI model failed'
+          console.error(`Model failed: ${model} attempt ${attempt}`, lastError)
+
+          if (attempt < 3) {
+            await sleep(1000)
+          }
         }
-
-        const optimized = extractJson(aiText)
-
-        return NextResponse.json({ optimized })
-      } catch (err: any) {
-        lastError = err.message || 'AI model failed'
-        console.error(`Model failed: ${model}`, lastError)
       }
     }
 
     return NextResponse.json(
-      { error: lastError || 'All AI models are currently busy. Please try again.' },
+      {
+        error:
+          lastError ||
+          'All AI models are currently busy. Please try again in a few seconds.',
+      },
       { status: 500 }
     )
   } catch (error) {
