@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const MODELS = [
-  'deepseek/deepseek-chat:free',
-  'google/gemma-3-27b-it:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'nvidia/llama-3.1-nemotron-nano-8b-v1:free',
-  'openrouter/free',
-]
+const MODELS = ['openrouter/auto']
 
 async function callOpenRouter(prompt: string, model: string) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -14,7 +8,7 @@ async function callOpenRouter(prompt: string, model: string) {
     headers: {
       'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'http://localhost:3000',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
       'X-Title': 'Resume Builder AI',
     },
     body: JSON.stringify({
@@ -23,8 +17,21 @@ async function callOpenRouter(prompt: string, model: string) {
     }),
   })
 
-  const data = await response.json()
-  return { response, data }
+  const text = await response.text()
+
+  let data: any = {}
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    throw new Error('Invalid JSON from OpenRouter')
+  }
+
+  if (!response.ok) {
+    const message = data?.error?.message || text || 'OpenRouter error'
+    throw new Error(message)
+  }
+
+  return data
 }
 
 export async function POST(req: NextRequest) {
@@ -32,7 +39,10 @@ export async function POST(req: NextRequest) {
     const { resume, jobDescription } = await req.json()
 
     if (!jobDescription?.trim()) {
-      return NextResponse.json({ error: 'Job description is required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Job description is required' },
+        { status: 400 }
+      )
     }
 
     const prompt = `You are an expert resume writer and career coach. 
@@ -115,41 +125,35 @@ ${jobDescription}
 
 Optimize the resume for this specific job. Return only raw JSON.`
 
-    let lastError = ''
-    for (const model of MODELS) {
-      console.log(`Trying model: ${model}`)
-      const { response, data } = await callOpenRouter(prompt, model)
+    try {
+      const data = await callOpenRouter(prompt, MODELS[0])
 
-      if (!response.ok) {
-        const code = data?.error?.code
-        if (code === 429 || code === 503 || code === 404) {
-          console.warn(`Model ${model} failed (${code}), trying next...`)
-          lastError = data?.error?.message || 'Unknown error'
-          continue
-        }
-        console.error('OpenRouter error:', data)
-        return NextResponse.json({ error: 'AI API error' }, { status: 500 })
-      }
+      const text =
+        data.choices?.[0]?.message?.content || ''
 
-      const text = data.choices?.[0]?.message?.content || ''
-      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      const cleaned = text
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim()
 
-      try {
-        const optimized = JSON.parse(cleaned)
-        console.log(`Success with model: ${model}`)
-        return NextResponse.json({ optimized })
-      } catch {
-        console.warn(`Model ${model} returned invalid JSON, trying next...`)
-        lastError = 'Invalid JSON response'
-        continue
-      }
+      const optimized = JSON.parse(cleaned)
+
+      return NextResponse.json({ optimized })
+    } catch (err: any) {
+      console.error('AI error:', err.message)
+
+      return NextResponse.json(
+        { error: err.message || 'AI failed' },
+        { status: 500 }
+      )
     }
-
-    console.error('All models failed. Last error:', lastError)
-    return NextResponse.json({ error: 'All AI models are currently busy. Please try again in a minute.' }, { status: 503 })
 
   } catch (error) {
     console.error('Optimize error:', error)
-    return NextResponse.json({ error: 'Failed to optimize resume' }, { status: 500 })
+
+    return NextResponse.json(
+      { error: 'Failed to optimize resume' },
+      { status: 500 }
+    )
   }
 }
