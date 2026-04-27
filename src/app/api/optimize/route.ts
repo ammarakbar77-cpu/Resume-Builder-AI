@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const MODELS = ['openrouter/auto']
+const MODELS = [
+  'google/gemini-2.0-flash-exp:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'openrouter/auto',
+]
 
 async function callOpenRouter(prompt: string, model: string) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -53,6 +57,7 @@ I have a resume and a job description. Your task is to optimize the resume to be
 3. Highlighting the most relevant skills
 4. Keeping all information truthful — only rephrase, don't fabricate
 5. Preserve all certifications and languages exactly as provided
+6. Describe the projects in a way that emphasizes relevant technologies and impact
 
 Return ONLY a valid JSON object matching exactly this structure (no markdown, no explanation, no code fences):
 {
