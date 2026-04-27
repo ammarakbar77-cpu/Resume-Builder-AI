@@ -13,12 +13,16 @@ module.exports = {
         display: ['var(--font-display)'],
       },
       colors: {
-        ink: '#0A0A0F',
-        paper: '#F5F3EE',
-        accent: '#C8FF00',
-        muted: '#6B6B7B',
-        border: '#E2E0D8',
-        surface: '#FAFAF7',
+        ink: '#0D0D12',
+        paper: '#F4F1EB',
+        accent: '#D4FF00',
+        muted: '#72717F',
+        border: '#E0DDD5',
+        surface: '#FAF8F4',
+      },
+      letterSpacing: {
+        tightest: '-0.04em',
+        tighter: '-0.02em',
       },
       animation: {
         'fade-up': 'fadeUp 0.6s ease forwards',

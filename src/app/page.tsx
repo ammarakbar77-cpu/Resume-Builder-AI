@@ -1,113 +1,184 @@
 'use client'
 
+import { useState, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Sparkles, FileText, Zap, Download } from 'lucide-react'
+import { FileText, ArrowLeft, Download, Sparkles } from 'lucide-react'
+import { ResumeData, TemplateId, defaultResume } from '@/lib/types'
+import ResumeEditor from '@/components/editor/ResumeEditor'
+import ResumePreview from '@/components/resume/ResumePreview'
+import OptimizePanel from '@/components/editor/OptimizePanel'
+import ATSScorePanel from '@/components/editor/ATSScorePanel'
+import TemplatePicker from '@/components/resume/TemplatePicker'
 
-export default function HomePage() {
+type Tab = 'edit' | 'optimize' | 'ats' | 'preview'
+
+export default function BuilderPage() {
+  const [resume, setResume] = useState<ResumeData>(defaultResume)
+  const [activeTab, setActiveTab] = useState<Tab>('edit')
+  const [template, setTemplate] = useState<TemplateId>('classic')
+  const [isOptimizing, setIsOptimizing] = useState(false)
+  const [optimizeSuccess, setOptimizeSuccess] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [jobDescription, setJobDescription] = useState('')
+  const printRef = useRef<HTMLDivElement>(null)
+
+  const handleOptimize = async (jd: string) => {
+    setIsOptimizing(true)
+    setOptimizeSuccess(false)
+    setJobDescription(jd)
+    try {
+      const res = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resume, jobDescription: jd }),
+      })
+      const data = await res.json()
+      if (data.optimized) {
+        setResume(data.optimized)
+        setOptimizeSuccess(true)
+        setActiveTab('preview')
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsOptimizing(false)
+    }
+  }
+
+  const handleExportPDF = async () => {
+    const element = printRef.current
+    if (!element) return
+
+    setIsExporting(true)
+    try {
+      const html2pdf = (await import('html2pdf.js')).default
+
+      const filename = resume.personal?.name
+        ? `${resume.personal.name.replace(/\s+/g, '_')}_Resume.pdf`
+        : 'resume.pdf'
+
+      const opt = {
+        margin: [10, 10, 10, 10] as [number, number, number, number],
+        filename,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'portrait' as const },
+      }
+
+      await html2pdf().set(opt).from(element).save()
+    } catch (err) {
+      console.error('Export failed:', err)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'edit', label: 'Edit' },
+    { id: 'optimize', label: 'AI Optimize' },
+    { id: 'ats', label: 'ATS Score' },
+    { id: 'preview', label: 'Preview' },
+  ]
+
+  const PreviewPanel = () => (
+    <div className="hidden lg:block sticky top-24 h-fit space-y-4">
+      <TemplatePicker selected={template} onChange={setTemplate} />
+      <ResumePreview resume={resume} template={template} ref={printRef} />
+    </div>
+  )
+
   return (
-    <main className="min-h-screen bg-paper overflow-hidden">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-ink rounded-lg flex items-center justify-center">
-            <FileText className="w-4 h-4 text-accent" />
-          </div>
-          <span className="font-display text-xl text-ink">ResumeAI</span>
-        </div>
-        <Link
-          href="/builder"
-          className="flex items-center gap-2 bg-ink text-paper px-5 py-2.5 rounded-full text-sm font-medium hover:bg-ink/80 transition-colors"
-        >
-          Start Building <ArrowRight className="w-4 h-4" />
-        </Link>
-      </nav>
-
-      {/* Hero */}
-      <section className="max-w-7xl mx-auto px-8 pt-20 pb-32">
-        <div className="max-w-4xl">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 bg-ink/5 border border-ink/10 rounded-full px-4 py-2 mb-8 animate-fade-up">
-            <Sparkles className="w-3.5 h-3.5 text-ink/60" />
-            <span className="text-xs font-medium text-ink/60 tracking-wide uppercase">Created by Amirul Ammar</span>
-          </div>
-
-          <h1
-            className="font-display text-[clamp(3rem,8vw,6.5rem)] leading-[0.95] text-ink mb-8 animate-fade-up"
-            style={{ animationDelay: '100ms', opacity: 0, animationFillMode: 'forwards' }}
-          >
-            Your resume,<br />
-            <em className="not-italic text-ink/30">perfectly tailored.</em>
-          </h1>
-
-          <p
-            className="text-xl text-muted leading-relaxed max-w-xl mb-12 animate-fade-up"
-            style={{ animationDelay: '200ms', opacity: 0, animationFillMode: 'forwards' }}
-          >
-            Build your resume visually, paste any job description, and let AI rewrite it to match — in seconds.
-          </p>
-
-          <div
-            className="flex flex-wrap gap-4 animate-fade-up"
-            style={{ animationDelay: '300ms', opacity: 0, animationFillMode: 'forwards' }}
-          >
-            <Link
-              href="/builder"
-              className="group flex items-center gap-3 bg-ink text-paper px-8 py-4 rounded-2xl text-lg font-medium hover:bg-ink/85 transition-all hover:gap-4"
-            >
-              Build My Resume
-              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+    <div className="min-h-screen bg-paper">
+      {/* Header */}
+      <header className="no-print sticky top-0 z-50 bg-paper/80 backdrop-blur-md border-b border-border">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2 text-muted hover:text-ink transition-colors">
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm">Back</span>
             </Link>
-            <div className="flex items-center gap-2 text-muted text-sm">
-              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse-slow" />
-              Free to use
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-ink rounded-lg flex items-center justify-center">
+                <FileText className="w-3.5 h-3.5 text-accent" />
+              </div>
+              <span className="font-display text-lg text-ink">ResumeAI</span>
             </div>
           </div>
-        </div>
 
-        {/* Features */}
-        <div
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-32 animate-fade-up"
-          style={{ animationDelay: '400ms', opacity: 0, animationFillMode: 'forwards' }}
-        >
-          {[
-            {
-              icon: FileText,
-              title: 'Visual Builder',
-              desc: 'Fill in your details with a clean, structured editor. No formatting headaches.',
-            },
-            {
-              icon: Zap,
-              title: 'AI Optimization',
-              desc: 'Paste a job description and AI rewrites your resume to match keywords and tone.',
-            },
-            {
-              icon: Download,
-              title: 'PDF Export',
-              desc: 'Download a clean, ATS-friendly PDF ready to send to any recruiter.',
-            },
-          ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="bg-white/60 border border-border rounded-2xl p-8 hover:border-ink/20 transition-colors">
-              <div className="w-10 h-10 bg-ink rounded-xl flex items-center justify-center mb-5">
-                <Icon className="w-5 h-5 text-accent" />
+          {/* Tabs */}
+          <div className="flex items-center bg-ink/5 rounded-xl p-1 gap-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-ink text-paper shadow-sm'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                {tab.id === 'optimize' && (
+                  <Sparkles className="w-3 h-3 inline mr-1.5 mb-0.5" />
+                )}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={handleExportPDF}
+            disabled={isExporting}
+            className="flex items-center gap-2 bg-ink text-paper px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-ink/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            {isExporting ? 'Exporting...' : 'Export PDF'}
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {activeTab === 'edit' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <ResumeEditor resume={resume} onChange={setResume} />
+            <PreviewPanel />
+          </div>
+        )}
+
+        {activeTab === 'optimize' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <OptimizePanel
+              onOptimize={handleOptimize}
+              isOptimizing={isOptimizing}
+              success={optimizeSuccess}
+            />
+            <PreviewPanel />
+          </div>
+        )}
+
+        {activeTab === 'ats' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <ATSScorePanel resume={resume} jobDescription={jobDescription} />
+            <PreviewPanel />
+          </div>
+        )}
+
+        {activeTab === 'preview' && (
+          <div className="max-w-3xl mx-auto space-y-4">
+            {optimizeSuccess && (
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-5 py-4">
+                <Sparkles className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="font-medium text-green-800">Resume optimized!</p>
+                  <p className="text-sm text-green-600">Your resume has been tailored to match the job description.</p>
+                </div>
               </div>
-              <h3 className="font-display text-2xl text-ink mb-3">{title}</h3>
-              <p className="text-muted leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Bottom CTA */}
-      <section className="bg-ink mx-8 mb-8 rounded-3xl py-20 px-8 text-center">
-        <h2 className="font-display text-5xl text-paper mb-4">Ready to stand out?</h2>
-        <p className="text-paper/50 mb-8 text-lg">Build a tailored resume in under 10 minutes.</p>
-        <Link
-          href="/builder"
-          className="inline-flex items-center gap-2 bg-accent text-ink px-8 py-4 rounded-2xl font-semibold hover:bg-accent/80 transition-colors"
-        >
-          Start for Free <ArrowRight className="w-5 h-5" />
-        </Link>
-      </section>
-    </main>
+            )}
+            <TemplatePicker selected={template} onChange={setTemplate} />
+            <ResumePreview resume={resume} template={template} ref={printRef} />
+          </div>
+        )}
+      </main>
+    </div>
   )
 }

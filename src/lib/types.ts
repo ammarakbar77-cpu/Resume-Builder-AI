@@ -67,6 +67,8 @@ export interface ATSResult {
   suggestions: string[]
 }
 
+export type TemplateId = 'classic' | 'modern' | 'minimal' | 'creative'
+
 export const defaultResume: ResumeData = {
   personal: {
     name: '',
