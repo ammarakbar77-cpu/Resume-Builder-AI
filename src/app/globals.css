@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'DM Serif Display', serif;
+  --font-geist: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #F5F3EE;
+  color: #0A0A0F;
+  font-family: var(--font-geist);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #F5F3EE; }
+::-webkit-scrollbar-thumb { background: #C8C4B8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9A9690; }
+
+/* Print styles for PDF export */
+@media print {
+  body { background: white; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+}
+
+@layer utilities {
+  .font-display { font-family: var(--font-display); }
+  .font-mono-custom { font-family: var(--font-mono); }
+  
+  .animate-delay-100 { animation-delay: 100ms; }
+  .animate-delay-200 { animation-delay: 200ms; }
+  .animate-delay-300 { animation-delay: 300ms; }
+  .animate-delay-400 { animation-delay: 400ms; }
+
+  .text-gradient {
+    background: linear-gradient(135deg, #0A0A0F 0%, #4A4A5A 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
