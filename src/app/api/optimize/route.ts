@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const MODELS = [
-  'qwen/qwen-2.5-7b-instruct:free',
-  'meta-llama/llama-3.2-3b-instruct:free',
-  'microsoft/phi-3-mini-128k-instruct:free',
+  'openrouter/auto',
 ]
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
