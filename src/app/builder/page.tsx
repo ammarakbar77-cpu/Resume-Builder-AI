@@ -3,17 +3,19 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { FileText, ArrowLeft, Download, Sparkles } from 'lucide-react'
-import { ResumeData, defaultResume } from '@/lib/types'
+import { ResumeData, TemplateId, defaultResume } from '@/lib/types'
 import ResumeEditor from '@/components/editor/ResumeEditor'
 import ResumePreview from '@/components/resume/ResumePreview'
 import OptimizePanel from '@/components/editor/OptimizePanel'
 import ATSScorePanel from '@/components/editor/ATSScorePanel'
+import TemplatePicker from '@/components/resume/TemplatePicker'
 
 type Tab = 'edit' | 'optimize' | 'ats' | 'preview'
 
 export default function BuilderPage() {
   const [resume, setResume] = useState<ResumeData>(defaultResume)
   const [activeTab, setActiveTab] = useState<Tab>('edit')
+  const [template, setTemplate] = useState<TemplateId>('classic')
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [optimizeSuccess, setOptimizeSuccess] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -78,6 +80,13 @@ export default function BuilderPage() {
     { id: 'preview', label: 'Preview' },
   ]
 
+  const SidePreview = () => (
+    <div className="hidden lg:flex flex-col gap-4 sticky top-24 h-fit">
+      <TemplatePicker selected={template} onChange={setTemplate} />
+      <ResumePreview resume={resume} template={template} ref={printRef} />
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-paper">
       {/* Header */}
@@ -132,9 +141,7 @@ export default function BuilderPage() {
         {activeTab === 'edit' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <ResumeEditor resume={resume} onChange={setResume} />
-            <div className="hidden lg:block sticky top-24 h-fit">
-              <ResumePreview resume={resume} ref={printRef} />
-            </div>
+            <SidePreview />
           </div>
         )}
 
@@ -145,25 +152,21 @@ export default function BuilderPage() {
               isOptimizing={isOptimizing}
               success={optimizeSuccess}
             />
-            <div className="hidden lg:block sticky top-24 h-fit">
-              <ResumePreview resume={resume} ref={printRef} />
-            </div>
+            <SidePreview />
           </div>
         )}
 
         {activeTab === 'ats' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <ATSScorePanel resume={resume} jobDescription={jobDescription} />
-            <div className="hidden lg:block sticky top-24 h-fit">
-              <ResumePreview resume={resume} ref={printRef} />
-            </div>
+            <SidePreview />
           </div>
         )}
 
         {activeTab === 'preview' && (
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-3xl mx-auto space-y-4">
             {optimizeSuccess && (
-              <div className="mb-6 flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-5 py-4">
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-5 py-4">
                 <Sparkles className="w-5 h-5 text-green-600" />
                 <div>
                   <p className="font-medium text-green-800">Resume optimized!</p>
@@ -171,7 +174,8 @@ export default function BuilderPage() {
                 </div>
               </div>
             )}
-            <ResumePreview resume={resume} ref={printRef} />
+            <TemplatePicker selected={template} onChange={setTemplate} />
+            <ResumePreview resume={resume} template={template} ref={printRef} />
           </div>
         )}
       </main>
