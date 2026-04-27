@@ -2,36 +2,58 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const MODELS = [
   'google/gemini-2.0-flash-exp:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
   'openrouter/auto',
 ]
+
+function extractJson(text: string) {
+  const cleaned = text
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim()
+
+  try {
+    return JSON.parse(cleaned)
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/)
+    if (match) {
+      return JSON.parse(match[0])
+    }
+    throw new Error('AI returned invalid JSON')
+  }
+}
 
 async function callOpenRouter(prompt: string, model: string) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
       'X-Title': 'Resume Builder AI',
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.2,
     }),
   })
 
-  const text = await response.text()
+  const rawText = await response.text()
 
   let data: any = {}
   try {
-    data = text ? JSON.parse(text) : {}
+    data = rawText ? JSON.parse(rawText) : {}
   } catch {
-    throw new Error('Invalid JSON from OpenRouter')
+    throw new Error('Invalid response from OpenRouter')
   }
 
   if (!response.ok) {
-    const message = data?.error?.message || text || 'OpenRouter error'
+    const message = data?.error?.message || rawText || 'OpenRouter error'
     throw new Error(message)
   }
 
@@ -49,7 +71,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const prompt = `You are an expert resume writer and career coach. 
+    const prompt = `You are an expert resume writer and career coach.
 
 I have a resume and a job description. Your task is to optimize the resume to better match the job description by:
 1. Rewriting the professional summary to align with the role
@@ -59,65 +81,76 @@ I have a resume and a job description. Your task is to optimize the resume to be
 5. Preserve all certifications and languages exactly as provided
 6. Describe the projects in a way that emphasizes relevant technologies and impact
 
-Return ONLY a valid JSON object matching exactly this structure (no markdown, no explanation, no code fences):
+Rules:
+- Return ONLY raw JSON.
+- Do NOT include markdown.
+- Do NOT include code fences.
+- Do NOT include explanations.
+- Keep all information truthful.
+- Do not fabricate experience, education, certifications, projects, or languages.
+- Preserve all existing IDs when possible.
+- Preserve certifications and languages exactly as provided.
+- Improve the professional summary, experience bullets, skills, and project descriptions.
+
+Return exactly this JSON structure:
 {
   "personal": {
-    "name": "...",
-    "title": "...",
-    "email": "...",
-    "phone": "...",
-    "location": "...",
-    "linkedin": "...",
-    "website": "...",
-    "summary": "optimized summary here"
+    "name": "",
+    "title": "",
+    "email": "",
+    "phone": "",
+    "location": "",
+    "linkedin": "",
+    "website": "",
+    "summary": ""
   },
   "experience": [
     {
-      "id": "...",
-      "company": "...",
-      "role": "...",
-      "startDate": "...",
-      "endDate": "...",
+      "id": "",
+      "company": "",
+      "role": "",
+      "startDate": "",
+      "endDate": "",
       "current": false,
-      "description": "...",
-      "bullets": ["optimized bullet 1", "optimized bullet 2"]
+      "description": "",
+      "bullets": []
     }
   ],
   "education": [
     {
-      "id": "...",
-      "school": "...",
-      "degree": "...",
-      "field": "...",
-      "startDate": "...",
-      "endDate": "...",
-      "gpa": "..."
+      "id": "",
+      "school": "",
+      "degree": "",
+      "field": "",
+      "startDate": "",
+      "endDate": "",
+      "gpa": ""
     }
   ],
-  "skills": ["skill1", "skill2"],
+  "skills": [],
   "projects": [
     {
-      "id": "...",
-      "name": "...",
-      "description": "...",
-      "tech": "...",
-      "link": "..."
+      "id": "",
+      "name": "",
+      "description": "",
+      "tech": "",
+      "link": ""
     }
   ],
   "certifications": [
     {
-      "id": "...",
-      "name": "...",
-      "issuer": "...",
-      "date": "...",
-      "credentialUrl": "..."
+      "id": "",
+      "name": "",
+      "issuer": "",
+      "date": "",
+      "credentialUrl": ""
     }
   ],
   "languages": [
     {
-      "id": "...",
-      "language": "...",
-      "proficiency": "..."
+      "id": "",
+      "language": "",
+      "proficiency": ""
     }
   ]
 }
@@ -130,29 +163,32 @@ ${jobDescription}
 
 Optimize the resume for this specific job. Return only raw JSON.`
 
-    try {
-      const data = await callOpenRouter(prompt, MODELS[0])
+    let lastError = 'AI failed'
 
-      const text =
-        data.choices?.[0]?.message?.content || ''
+    for (const model of MODELS) {
+      try {
+        console.log(`Trying model: ${model}`)
 
-      const cleaned = text
-        .replace(/```json\n?/g, '')
-        .replace(/```\n?/g, '')
-        .trim()
+        const data = await callOpenRouter(prompt, model)
+        const aiText = data.choices?.[0]?.message?.content || ''
 
-      const optimized = JSON.parse(cleaned)
+        if (!aiText) {
+          throw new Error('AI returned empty response')
+        }
 
-      return NextResponse.json({ optimized })
-    } catch (err: any) {
-      console.error('AI error:', err.message)
+        const optimized = extractJson(aiText)
 
-      return NextResponse.json(
-        { error: err.message || 'AI failed' },
-        { status: 500 }
-      )
+        return NextResponse.json({ optimized })
+      } catch (err: any) {
+        lastError = err.message || 'AI model failed'
+        console.error(`Model failed: ${model}`, lastError)
+      }
     }
 
+    return NextResponse.json(
+      { error: lastError || 'All AI models are currently busy. Please try again.' },
+      { status: 500 }
+    )
   } catch (error) {
     console.error('Optimize error:', error)
 
